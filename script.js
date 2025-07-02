@@ -30,39 +30,52 @@ function showContainer(html) {
 
 // Improved Latin Square implementation for better randomization
 function createLatinSquare(texts) {
-    const narratives = texts.filter(t => t.narrative);
-    const expositories = texts.filter(t => t.expository);
-    
-    // Create a participant-specific rotation based on their ID and timestamp
-    const participantSeed = parseInt(state.participantId.substr(-4), 36);
-    const timeBasedSeed = Math.floor(Date.now() / 10000); // Changes every 10 seconds
-    const combinedSeed = participantSeed + timeBasedSeed;
-    
-    // Use the combined seed to create consistent but varied rotation
-    const narrativeRotation = combinedSeed % narratives.length;
-    const expositoryRotation = (combinedSeed + 3) % expositories.length;
-    
-    const selectedTexts = [];
-    
-    // Select 2 narratives and 2 expositories with rotation
-    for (let i = 0; i < 2; i++) {
-        selectedTexts.push(narratives[(narrativeRotation + i) % narratives.length]);
-        selectedTexts.push(expositories[(expositoryRotation + i) % expositories.length]);
-    }
-    
-    // Shuffle the selected texts using the participant seed
-    for (let i = selectedTexts.length - 1; i > 0; i--) {
-        const j = (participantSeed + i) % (i + 1);
-        [selectedTexts[i], selectedTexts[j]] = [selectedTexts[j], selectedTexts[i]];
-    }
-    
-    return selectedTexts;
+  // Create separate objects for narrative and expository versions
+  const narrativeTexts = texts.map(text => ({
+      ...text,
+      type: 'narrative',
+      content: text.narrative,
+      expository: undefined // Remove expository to force narrative display
+  }));
+  
+  const expositoryTexts = texts.map(text => ({
+      ...text,
+      type: 'expository', 
+      content: text.expository,
+      narrative: undefined // Remove narrative to force expository display
+  }));
+  
+  // Create participant-specific rotation based on their ID and timestamp
+  const participantSeed = parseInt(state.participantId.substr(-4), 36);
+  const timeBasedSeed = Math.floor(Date.now() / 10000);
+  const combinedSeed = participantSeed + timeBasedSeed;
+  
+  // Use different rotations for narrative and expository
+  const narrativeRotation = combinedSeed % narrativeTexts.length;
+  const expositoryRotation = (combinedSeed + 3) % expositoryTexts.length;
+  
+  const selectedTexts = [];
+  
+  // Select 2 narratives and 2 expositories with rotation
+  for (let i = 0; i < 2; i++) {
+      selectedTexts.push(narrativeTexts[(narrativeRotation + i) % narrativeTexts.length]);
+      selectedTexts.push(expositoryTexts[(expositoryRotation + i) % expositoryTexts.length]);
+  }
+  
+  // Shuffle the selected texts using the participant seed
+  for (let i = selectedTexts.length - 1; i > 0; i--) {
+      const j = (participantSeed + i) % (i + 1);
+      [selectedTexts[i], selectedTexts[j]] = [selectedTexts[j], selectedTexts[i]];
+  }
+  
+  return selectedTexts;
 }
+
 
 function showConsent() {
     showContainer(`
         <h2>Consent Form</h2>
-        <p>This experiment is conducted by <strong>Mohammed Nasser Al Moqdad and Richard Reichardt</strong> as part of a research project. Your participation is voluntary and anonymous.</p>
+        <p>This experiment is conducted by <strong>ichard Reichardt and Mohammed Nasser Al Moqdad</strong> as part of a research project. Your participation is voluntary and anonymous.</p>
         <p>You will be asked to read several texts and answer questions about them. <strong>You will have exactly 5 minutes to read each text.</strong> After the 5-minute timer expires, you will automatically proceed to answer questions about that text. The entire experiment will take approximately 15-20 minutes.</p>
         <form id="consent-form">
             <label>
@@ -127,45 +140,46 @@ function formatTime(seconds) {
 }
 
 function showText() {
-    const currentText = state.assignedTexts[state.currentTextIndex];
-    const textContent = currentText.narrative || currentText.expository;
-    const textType = currentText.narrative ? 'narrative' : 'expository';
-    
-    // Initialize timer
-    state.timeLeft = 300; // 5 minutes in seconds
-    
-    showContainer(`
-        <h2>Text ${state.currentTextIndex + 1} of ${state.assignedTexts.length}</h2>
-        
-        <div id="timer-container">
-            <div id="timer-display">
-                <strong>Time Remaining: <span id="timer-text">${formatTime(state.timeLeft)}</span></strong>
-            </div>
-            <div id="timer-bar-container">
-                <div id="timer-bar" style="width: 100%"></div>
-            </div>
-        </div>
-        
-        <div class="text-container">
-            <h3>${currentText.title}</h3>
-            <p class="text-type">Type: ${textType}</p>
-            <div class="text-content">${textContent}</div>
-        </div>
-        
-        <form id="text-form">
-            <button type="submit" id="continue-btn">Continue to Questions</button>
-        </form>
-    `);
-    
-    startTimer();
-    
-    document.getElementById('text-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        clearInterval(state.timerInterval);
-        state.currentStep++;
-        showQuestions();
-    });
+  const currentText = state.assignedTexts[state.currentTextIndex];
+  const textContent = currentText.content || currentText.narrative || currentText.expository;
+  const textType = currentText.type || (currentText.narrative ? 'narrative' : 'expository');
+  
+  // Initialize timer
+  state.timeLeft = 300; // 5 minutes in seconds
+  
+  showContainer(`
+      <h2>Text ${state.currentTextIndex + 1} of ${state.assignedTexts.length}</h2>
+      
+      <div class="timer-container">
+          <div class="timer-display">
+              <strong>Time Remaining: <span id="timer-text">${formatTime(state.timeLeft)}</span></strong>
+          </div>
+          <div class="timer-bar-bg">
+              <div id="timer-bar" class="timer-bar-fg"></div>
+          </div>
+      </div>
+      
+      <div class="text-container">
+          <h3>${currentText.title}</h3>
+          <p class="text-type">Type: ${textType}</p>
+          <div class="text-content">${textContent}</div>
+      </div>
+      
+      <form id="text-form">
+          <button type="submit" id="continue-btn">Continue to Questions</button>
+      </form>
+  `);
+  
+  startTimer();
+  
+  document.getElementById('text-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      clearInterval(state.timerInterval);
+      state.currentStep++;
+      showQuestions();
+  });
 }
+
 
 function startTimer() {
     const timerText = document.getElementById('timer-text');
@@ -275,7 +289,7 @@ function showCompletion() {
                 <p><strong>Your participant code is: <span id="participant-code">${state.participantId}</span></strong></p>
             </div>
             
-            <p>If you have any questions, contact Richard Reichardt at <a href="mailto:reichardt.richard@ppk.elte.hu">reichardt.richard@ppk.elte.hu</a>.</p>
+            <p>If you have any questions, contact Richard Reichardt at <a href="mailto:reichardt.richard@ppk.elte.hu">reichardt.richard@ppk.elte.hu</a> or Mohammed Nasser Al Moqdad at <a href="mailto:reichardt.richard@ppk.elte.hu">naser@student.elte.hu</a>.</p>
             
             <div id="submission-status">
                 <p id="submission-message">Submitting your data...</p>
