@@ -1,273 +1,241 @@
-// Experiment configuration and state
+/* ============================
+  Experiment configuration
+============================*/
 const JSON_URL = "https://api.jsonsilo.com/public/26c41b8c-31a3-4bc0-a421-f9ecf9678003";
 const FORM_POST_URL = "https://script.google.com/macros/s/AKfycbxuEEHDR_5mggc3XKlwTSxw2tK664M_Rxry_gAYg9Llyc-AF46eCVpNzk1cz0jI8hKx/exec";
-const TIMER_DURATION_MS = 5 * 60 * 1000; // 5 minutes timer
+const TIMER_DURATION_MS = 5 * 60 * 1000; // 5 min
+const TEXTS_PER_PARTICIPANT = 4;
 
-let state = {
-  page: "intro", // 'intro', 'metadata', 'text', 'questions', 'familiarity', 'thanks'
-  participantId: generateParticipantId(),
-  metadata: {},
-  data: [],
-  texts: [],
-  currentTextIndex: 0,
-  timer: null,
-  timerRemaining: TIMER_DURATION_MS,
+/*  Ordered list matching spreadsheet columns
+    Narrative N1‥N8, Exploratory E1‥E7  */
+const TEXT_ID_ORDER = [
+  "N1","E1","N2","E2","N3","E3","N4","E4","N5","E5","N6","E6","N7","E7","N8"
+];
+
+/* ============================
+  Latin-square utilities
+============================*/
+function balancedLatinSquare(n){
+  // Algorithm from Bradley (1958) – returns n arrays length n
+  const base = [];
+  for(let i=0;i<n;i++){
+    base.push(i%2===0 ? i/2 : n-1-(i-1)/2);
+  }
+  const square = [];
+  for(let r=0;r<n;r++){
+    square[r] = base.map(v => (v+r)%n);
+  }
+  return square;
+}
+
+/* Generate sequence for this participant & slice first 4 ids */
+function getParticipantSequence(){
+  const n = TEXT_ID_ORDER.length;
+  const square = balancedLatinSquare(n);
+  const row = Math.floor(Math.random()*n);
+  const full = square[row].map(idx=>TEXT_ID_ORDER[idx]);
+  return full.slice(0,TEXTS_PER_PARTICIPANT);
+}
+
+/* ============================
+  Global experiment state
+============================*/
+const state = {
+  page:"intro",
+  participantId: genId(),
+  metadata:{},
+  selectedIds: getParticipantSequence(), // 4 IDs
+  texts:[], // full objects of the 4 selected texts
+  curIndex:0,
+  data:{}, // answers keyed by textID
+  timer:null,
+  remaining:TIMER_DURATION_MS
 };
 
 const container = document.getElementById("container");
 const progressBar = document.getElementById("progress-bar");
 
-// Utility: generate unique participant ID
-function generateParticipantId() {
-  return 'P-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+function genId(){return "P-"+crypto.randomUUID().slice(0,8).toUpperCase();}
+function fmt(ms){const s=Math.floor(ms/1000);const m=Math.floor(s/60);return `${m}:${String(s%60).padStart(2,"0")}`;}
+
+/* ============================
+  Load + filter texts
+============================*/
+async function loadTexts(){
+  const res=await fetch(JSON_URL); if(!res.ok) throw new Error("JSON fetch failed");
+  const all = await res.json();
+  // keep only texts in participant sequence and preserve same order
+  state.texts = state.selectedIds.map(id=> all.find(t=>t.id===id));
 }
 
-// Utility: format time mm:ss
-function formatTime(ms) {
-  const totalSeconds = Math.floor(ms / 1000);
-  const m = Math.floor(totalSeconds / 60);
-  const s = totalSeconds % 60;
-  return `${m}:${s < 10 ? "0" : ""}${s}`;
-}
-
-// Load JSON texts
-async function loadTexts() {
-  try {
-    const resp = await fetch(JSON_URL);
-    if (!resp.ok) throw new Error("Failed to fetch JSON");
-    const json = await resp.json();
-    state.texts = json;
-  } catch (e) {
-    container.innerHTML = `<p style="color:red;">Error loading texts: ${e.message}</p>`;
+/* ============================
+  Progress-bar helper
+============================*/
+function setProgress(){
+  const total = state.texts.length*2 + 4; // intro + metadata + (text+qs)*n + familiar + thanks
+  let step=0;
+  switch(state.page){
+    case "intro": step=1; break;
+    case "metadata": step=2; break;
+    case "text": step=3+state.curIndex*2; break;
+    case "questions": step=4+state.curIndex*2; break;
+    case "familiarity": step=total-1; break;
+    case "thanks": step=total; break;
   }
+  progressBar.style.width = (step/total*100).toFixed(2)+"%";
 }
 
-// Render progress bar
-function updateProgressBar() {
-  const totalPages = state.texts.length * 2 + 4; // intro + metadata + (text+questions)*n + familiarity + thanks
-  let progressIndex;
-  switch(state.page) {
-    case "intro": progressIndex = 1; break;
-    case "metadata": progressIndex = 2; break;
-    case "text": progressIndex = 3 + state.currentTextIndex * 2; break;
-    case "questions": progressIndex = 4 + state.currentTextIndex * 2; break;
-    case "familiarity": progressIndex = totalPages - 1; break;
-    case "thanks": progressIndex = totalPages; break;
-    default: progressIndex = 0;
-  }
-  const percent = (progressIndex / totalPages) * 100;
-  progressBar.style.width = percent + "%";
-}
-
-// Render intro page
-function renderIntro() {
-  updateProgressBar();
-  container.innerHTML = `
-    <h1>Welcome to the Experiment</h1>
-    <p>This study is conducted by Prof. Richard Reichardt at ELTE.</p>
-    <p>Contact: <a href="mailto:reichardt.richard@ppk.elte.hu">reichardt.richard@ppk.elte.hu</a></p>
+/* ============================
+  Page renderers (intro, etc.)
+============================*/
+function renderIntro(){
+  setProgress();
+  container.innerHTML=`
+    <h2>Welcome to the Experiment</h2>
+    <p>This study is conducted to explore comprehension of narrative and explanatory texts.</p>
     <p>Please read the consent information carefully before starting.</p>
-    <label><input type="checkbox" id="consent-checkbox" /> I have read and agree to participate in this study.</label>
-    <button id="start-btn" disabled>Start</button>
+    <label><input id="consChk" type="checkbox">  I have read the information and agree to participate.</label>
+    <button id="startBtn" disabled>Begin</button>
   `;
-  document.getElementById("consent-checkbox").addEventListener("change", e => {
-    document.getElementById("start-btn").disabled = !e.target.checked;
-  });
-  document.getElementById("start-btn").addEventListener("click", () => {
-    state.page = "metadata";
-    renderPage();
-  });
+  const chk=document.getElementById("consChk");
+  chk.addEventListener("change",()=>startBtn.disabled=!chk.checked);
+  const startBtn=document.getElementById("startBtn");
+  startBtn.addEventListener("click",()=>{state.page="metadata";render();});
 }
 
-// Render metadata collection page
-function renderMetadata() {
-  updateProgressBar();
-  container.innerHTML = `
-    <h2>Participant Information</h2>
-    <form id="metadata-form">
-      <label>Age:<input type="number" id="age" min="18" max="120" required /></label>
-      <label>Education Level:
-        <select id="education" required>
-          <option value="">Select...</option>
-          <option value="High School">High School</option>
-          <option value="Undergraduate">Undergraduate</option>
-          <option value="Graduate">Graduate</option>
-          <option value="Other">Other</option>
+function renderMetadata(){
+  setProgress();
+  container.innerHTML=`
+    <form id="metaForm" novalidate>
+      <h2>Participant Information</h2>
+      <label>Age<input name="age" type="number" min="12" required></label>
+      <label>Highest education
+        <select name="edu" required>
+          <option value="" disabled selected>Select…</option>
+          <option>High School</option><option>Undergraduate</option><option>Graduate</option><option>Other</option>
         </select>
       </label>
-      <label>Fluency in English:
-        <select id="fluency" required>
-          <option value="">Select...</option>
-          <option value="Native">Native</option>
-          <option value="Fluent">Fluent</option>
-          <option value="Intermediate">Intermediate</option>
-          <option value="Basic">Basic</option>
+      <label>English fluency
+        <select name="flu" required>
+          <option value="" disabled selected>Select…</option>
+          <option>Native</option><option>Fluent</option><option>Intermediate</option><option>Basic</option>
         </select>
       </label>
-      <button type="submit">Continue</button>
-    </form>
-  `;
-  document.getElementById("metadata-form").addEventListener("submit", e => {
+      <button>Continue</button>
+    </form>`;
+  document.getElementById("metaForm").addEventListener("submit",e=>{
     e.preventDefault();
-    state.metadata.age = e.target.age.value;
-    state.metadata.education = e.target.education.value;
-    state.metadata.fluency = e.target.fluency.value;
-    state.page = "text";
-    state.currentTextIndex = 0;
-    startTimer();
-    renderPage();
+    const fd=new FormData(e.target);
+    state.metadata = {age:fd.get("age"), fluency:fd.get("flu"), education:fd.get("edu")};
+    state.page="text"; state.curIndex=0; startTimer(); render();
   });
 }
 
-// Render text page (hide questions)
-function renderText() {
-  updateProgressBar();
-  const textObj = state.texts[state.currentTextIndex];
-  container.innerHTML = `
-    <h2>Text ${state.currentTextIndex + 1} of ${state.texts.length}</h2>
-    <h3>${textObj.title}</h3>
-    <div class="text-container">${textObj.narrative}</div>
-    <button id="next-btn">Next: Questions</button>
-    <div id="timer">Time left: ${formatTime(state.timerRemaining)}</div>
+function renderText(){
+  setProgress();
+  const txt=state.texts[state.curIndex];
+  container.innerHTML=`
+    <h2>Text ${state.curIndex+1} of ${state.texts.length}</h2>
+    <h3>${txt.title}</h3>
+    <p>${txt.content}</p>
+    <p id="timer">Time left: ${fmt(state.remaining)}</p>
+    <button id="nextBtn">Answer Questions</button>
   `;
-  document.getElementById("next-btn").addEventListener("click", () => {
-    state.page = "questions";
-    renderPage();
-  });
+  document.getElementById("nextBtn").addEventListener("click",()=>{state.page="questions";render();});
 }
 
-// Render questions page (hide text)
-function renderQuestions() {
-  updateProgressBar();
-  const textObj = state.texts[state.currentTextIndex];
-  container.innerHTML = `
-    <h2>Questions for Text ${state.currentTextIndex + 1}</h2>
-    <form id="questions-form">
-      ${textObj.questions
-        .map((q, i) => `
-          <label>${q}
-            <textarea name="q${i}" required rows="2"></textarea>
-          </label>
-        `)
-        .join("")}
-      <button type="submit">Submit Answers</button>
-    </form>
-    <div id="timer">Time left: ${formatTime(state.timerRemaining)}</div>
-  `;
-
-  document.getElementById("questions-form").addEventListener("submit", e => {
+function renderQuestions(){
+  setProgress();
+  const txt=state.texts[state.curIndex];
+  container.innerHTML=`
+    <form id="qForm" aria-labelledby="qHeading">
+      <h2 id="qHeading">Questions for "${txt.title}"</h2>
+      ${txt.questions.map((q,i)=>`<label>${q}<textarea name="q${i}" required></textarea></label>`).join("")}
+      <p id="timer">Time left: ${fmt(state.remaining)}</p>
+      <button>Submit Answers</button>
+    </form>`;
+  document.getElementById("qForm").addEventListener("submit",e=>{
     e.preventDefault();
-    const formData = new FormData(e.target);
-    const answers = {};
-    for(let i = 0; i < textObj.questions.length; i++) {
-      answers[`q${i}`] = formData.get(`q${i}`).trim();
-    }
-    state.data.push({
-      textIndex: state.currentTextIndex,
-      answers,
-      timestamp: new Date().toISOString()
-    });
-    state.currentTextIndex++;
-    if(state.currentTextIndex < state.texts.length) {
-      state.page = "text";
-      state.timerRemaining = TIMER_DURATION_MS;
-      startTimer();
-    } else {
-      state.page = "familiarity";
-      stopTimer();
-    }
-    renderPage();
+    const fd=new FormData(e.target);
+    state.data[txt.id]= txt.questions.map((_,i)=>fd.get(`q${i}`));
+    state.curIndex++;
+    if(state.curIndex<state.texts.length){state.page="text"; state.remaining=TIMER_DURATION_MS; startTimer();}
+    else {stopTimer(); state.page="familiarity";}
+    render();
   });
 }
 
-// Render familiarity scale
-function renderFamiliarity() {
-  updateProgressBar();
-  container.innerHTML = `
-    <h2>Familiarity with Topics</h2>
-    <form id="familiarity-form">
-      <label>How familiar are you with the topics you just read?
-        <select id="familiarity" required>
-          <option value="">Select...</option>
-          <option value="Not familiar at all">Not familiar at all</option>
-          <option value="Slightly familiar">Slightly familiar</option>
-          <option value="Moderately familiar">Moderately familiar</option>
-          <option value="Very familiar">Very familiar</option>
-          <option value="Extremely familiar">Extremely familiar</option>
-        </select>
-      </label>
-      <button type="submit">Finish</button>
-    </form>
-  `;
-  document.getElementById("familiarity-form").addEventListener("submit", e => {
+function renderFamiliarity(){
+  setProgress();
+  container.innerHTML=`
+    <form id="famForm">
+      <h2>Overall familiarity with the topics</h2>
+      <label class="visually-hidden" for="famSel">Select familiarity</label>
+      <select id="famSel" name="fam" required>
+        <option value="" disabled selected>Select…</option>
+        <option>Not familiar at all</option><option>Slightly familiar</option><option>Moderately familiar</option><option>Very familiar</option><option>Extremely familiar</option>
+      </select>
+      <button>Finish</button>
+    </form>`;
+  document.getElementById("famForm").addEventListener("submit",e=>{
     e.preventDefault();
-    state.metadata.familiarity = e.target.familiarity.value;
-    state.page = "thanks";
-    renderPage();
+    state.metadata.familiarity=e.target.fam.value;
+    state.page="thanks";
+    render();
   });
 }
 
-// Render thank you page and submit data
-function renderThanks() {
-  updateProgressBar();
-  container.innerHTML = `
-    <h1>Thank you for participating!</h1>
-    <p>Your responses have been recorded.</p>
-  `;
+function renderThanks(){
+  setProgress();
+  container.innerHTML=`<h2>Thank you for participating!</h2><p>Your responses have been recorded.</p>`;
   submitData();
 }
 
-// Timer functions
-function startTimer() {
+/* ============================
+  Timer helpers
+============================*/
+function startTimer(){
+  const end=Date.now()+state.remaining;
   if(state.timer) clearInterval(state.timer);
-  const startTime = Date.now();
-  const endTime = startTime + state.timerRemaining;
-  state.timer = setInterval(() => {
-    const now = Date.now();
-    state.timerRemaining = Math.max(0, endTime - now);
-    document.getElementById("timer")?.textContent = `Time left: ${formatTime(state.timerRemaining)}`;
-    if(state.timerRemaining <= 0) {
+  state.timer=setInterval(()=>{
+    state.remaining=Math.max(0,end-Date.now());
+    document.getElementById("timer")?.textContent="Time left: "+fmt(state.remaining);
+    if(state.remaining===0){
       clearInterval(state.timer);
-      if(state.page === "text") {
-        // Auto-move to questions if timer ends
-        state.page = "questions";
-        renderPage();
-      } else if(state.page === "questions") {
-        alert("Time is up! Please submit your answers.");
-      }
+      if(state.page==="text"){state.page="questions";render();}
     }
-  }, 1000);
+  },1000);
 }
+function stopTimer(){clearInterval(state.timer);state.timer=null;}
 
-function stopTimer() {
-  if(state.timer) clearInterval(state.timer);
-  state.timer = null;
-}
-
-// Submit data to Google Sheets via Apps Script
-function submitData() {
-  const payload = {
-    participantId: state.participantId,
-    metadata: state.metadata,
-    responses: state.data
+/* ============================
+  Data submission (sheet cols)
+============================*/
+function buildSheetRow(){
+  const row={
+    timestamp: new Date().toISOString(),
+    participantid: state.participantId,
+    age: state.metadata.age||"",
+    fluency: state.metadata.fluency||""
   };
-  fetch(FORM_POST_URL, {
-    method: "POST",
-    headers: {"Content-Type": "text/plain"},
-    body: JSON.stringify(payload)
-  })
-  .then(res => {
-    if (!res.ok) throw new Error("Network response was not ok");
-    console.log("Data submitted successfully");
-  })
-  .catch(err => {
-    console.error("Failed to submit data:", err);
-  });
+  // pre-fill all columns with "" then copy answers
+  TEXT_ID_ORDER.forEach(id=> row[id]="");
+  Object.entries(state.data).forEach(([id,ans])=>{row[id]=ans.join(" | ");});
+  return row;
 }
 
-// Main render dispatcher
-function renderPage() {
-  switch(state.page) {
+function submitData(){
+  fetch(FORM_POST_URL,{
+    method:"POST", headers:{"Content-Type":"text/plain"},
+    body: JSON.stringify(buildSheetRow())
+  }).then(r=>console.log("Submitted",r.ok)).catch(err=>console.error(err));
+}
+
+/* ============================
+  Main render router
+============================*/
+function render(){
+  switch(state.page){
     case "intro": renderIntro(); break;
     case "metadata": renderMetadata(); break;
     case "text": renderText(); break;
@@ -277,9 +245,10 @@ function renderPage() {
   }
 }
 
-// Initialization
-async function init() {
-  await loadTexts();
-  renderPage();
-}
-init();
+/* ============================
+  Init
+============================*/
+(async()=>{
+  try{await loadTexts();}catch(e){container.textContent=e.message;return;}
+  render();
+})();
