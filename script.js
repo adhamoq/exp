@@ -288,57 +288,62 @@ function showCompletion() {
 }
 
 async function submitData() {
-    const submissionData = {
-        timestamp: new Date().toISOString(),
-        participantid: state.participantId,
-        age: state.demographics.age,
-        fluency: state.demographics.fluency,
-        assignedTexts: state.assignedTexts.map(t => t.title), // Log which texts were assigned
-        N1: state.responses.N1 || '',
-        E1: state.responses.E1 || '',
-        N2: state.responses.N2 || '',
-        E2: state.responses.E2 || '',
-        N3: state.responses.N3 || '',
-        E3: state.responses.E3 || '',
-        N4: state.responses.N4 || '',
-        E4: state.responses.E4 || '',
-        N5: state.responses.N5 || '',
-        E5: state.responses.E5 || '',
-        N6: state.responses.N6 || '',
-        E6: state.responses.E6 || '',
-        N7: state.responses.N7 || '',
-        E7: state.responses.E7 || '',
-        N8: state.responses.N8 || ''
-    };
-    
-    try {
-        const response = await fetch(SHEET_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(submissionData)
-        });
+  // Create data object matching EXACT sheet column headers
+  const submissionData = {
+      timestamp: new Date().toISOString(),
+      participantid: state.participantId,
+      age: state.demographics.age,
+      fluency: state.demographics.fluency,
+      N1: state.responses.N1 || '',
+      E1: state.responses.E1 || '',
+      N2: state.responses.N2 || '',
+      E2: state.responses.E2 || '',
+      N3: state.responses.N3 || '',
+      E3: state.responses.E3 || '',
+      N4: state.responses.N4 || '',
+      E4: state.responses.E4 || '',
+      N5: state.responses.N5 || '',
+      E5: state.responses.E5 || '',
+      N6: state.responses.N6 || '',
+      E6: state.responses.E6 || '',
+      N7: state.responses.N7 || '',
+      E7: state.responses.E7 || '',
+      N8: state.responses.N8 || ''
+  };
 
-        const result = await response.json();
-        
-        if (response.ok && result.success) {
-            document.getElementById('submission-message').innerHTML = '<strong style="color: green;">Data submitted successfully!</strong>';
-            document.getElementById('submission-spinner').style.display = 'none';
-        } else {
-            throw new Error(result.error || 'Submission failed');
-        }
-        
-    } catch (error) {
-        console.error('Error submitting data:', error);
-        document.getElementById('submission-message').innerHTML = `
-            <strong style="color: red;">Failed to submit data.</strong><br>
-            <small>Error: ${error.message}</small><br>
-            <small>Please save your participant code: <strong>${state.participantId}</strong></small>
-        `;
-        document.getElementById('submission-spinner').style.display = 'none';
-    }
+  // Log the data being sent for debugging
+  console.log('Submitting data:', submissionData);
+  console.log('Assigned texts for this participant:', state.assignedTexts.map(t => t.title));
+  
+  try {
+      const response = await fetch(SHEET_URL, {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(submissionData)
+      });
+
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+          document.getElementById('submission-message').innerHTML = '<strong style="color: green;">Data submitted successfully!</strong>';
+          document.getElementById('submission-spinner').style.display = 'none';
+      } else {
+          throw new Error(result.error || 'Submission failed');
+      }
+      
+  } catch (error) {
+      console.error('Error submitting data:', error);
+      document.getElementById('submission-message').innerHTML = `
+          <strong style="color: red;">Failed to submit data.</strong><br>
+          <small>Error: ${error.message}</small><br>
+          <small>Please save your participant code: <strong>${state.participantId}</strong></small>
+      `;
+      document.getElementById('submission-spinner').style.display = 'none';
+  }
 }
+
 
 async function initExperiment() {
     try {
