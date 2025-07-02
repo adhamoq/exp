@@ -1,4 +1,4 @@
-const SHEET_URL = "https://exp-xug8.onrender.com/submit"; // Replace with your actual Render URL
+const SHEET_URL = "https://exp-xug8.onrender.com/submit";
 const TEXTS_JSON = "texts.json";
 
 let state = {
@@ -9,7 +9,9 @@ let state = {
     assignedTexts: [],
     currentTextIndex: 0,
     responses: {},
-    startTime: Date.now()
+    startTime: Date.now(),
+    timerInterval: null,
+    timeLeft: 0
 };
 
 function generateId() {
@@ -26,20 +28,31 @@ function showContainer(html) {
     updateProgress();
 }
 
+// Improved Latin Square implementation for better randomization
 function createLatinSquare(texts) {
     const narratives = texts.filter(t => t.narrative);
     const expositories = texts.filter(t => t.expository);
     
-    const rotation = Math.floor(Math.random() * narratives.length);
+    // Create a participant-specific rotation based on their ID and timestamp
+    const participantSeed = parseInt(state.participantId.substr(-4), 36);
+    const timeBasedSeed = Math.floor(Date.now() / 10000); // Changes every 10 seconds
+    const combinedSeed = participantSeed + timeBasedSeed;
+    
+    // Use the combined seed to create consistent but varied rotation
+    const narrativeRotation = combinedSeed % narratives.length;
+    const expositoryRotation = (combinedSeed + 3) % expositories.length;
     
     const selectedTexts = [];
+    
+    // Select 2 narratives and 2 expositories with rotation
     for (let i = 0; i < 2; i++) {
-        selectedTexts.push(narratives[(rotation + i) % narratives.length]);
-        selectedTexts.push(expositories[(rotation + i) % expositories.length]);
+        selectedTexts.push(narratives[(narrativeRotation + i) % narratives.length]);
+        selectedTexts.push(expositories[(expositoryRotation + i) % expositories.length]);
     }
     
+    // Shuffle the selected texts using the participant seed
     for (let i = selectedTexts.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
+        const j = (participantSeed + i) % (i + 1);
         [selectedTexts[i], selectedTexts[j]] = [selectedTexts[j], selectedTexts[i]];
     }
     
@@ -49,8 +62,8 @@ function createLatinSquare(texts) {
 function showConsent() {
     showContainer(`
         <h2>Consent Form</h2>
-        <p>This experiment is part of a research project by <strong>Mohammed Nasser Al Moqdad</strong>. Your participation is voluntary and anonymous.</p>
-        <p>You will be asked to read several texts and answer questions about them. The experiment will take approximately 15-20 minutes.</p>
+        <p>This experiment is conducted by <strong>Mohammed Nasser Al Moqdad and Richard Reichardt</strong> as part of a research project. Your participation is voluntary and anonymous.</p>
+        <p>You will be asked to read several texts and answer questions about them. <strong>You will have exactly 5 minutes to read each text.</strong> After the 5-minute timer expires, you will automatically proceed to answer questions about that text. The entire experiment will take approximately 15-20 minutes.</p>
         <form id="consent-form">
             <label>
                 <input type="checkbox" id="consent-checkbox" required>
@@ -107,28 +120,90 @@ function showDemographics() {
     });
 }
 
+function formatTime(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
+
 function showText() {
     const currentText = state.assignedTexts[state.currentTextIndex];
     const textContent = currentText.narrative || currentText.expository;
     const textType = currentText.narrative ? 'narrative' : 'expository';
     
+    // Initialize timer
+    state.timeLeft = 300; // 5 minutes in seconds
+    
     showContainer(`
         <h2>Text ${state.currentTextIndex + 1} of ${state.assignedTexts.length}</h2>
+        
+        <div id="timer-container">
+            <div id="timer-display">
+                <strong>Time Remaining: <span id="timer-text">${formatTime(state.timeLeft)}</span></strong>
+            </div>
+            <div id="timer-bar-container">
+                <div id="timer-bar" style="width: 100%"></div>
+            </div>
+        </div>
+        
         <div class="text-container">
             <h3>${currentText.title}</h3>
             <p class="text-type">Type: ${textType}</p>
             <div class="text-content">${textContent}</div>
         </div>
+        
         <form id="text-form">
-            <button type="submit">Continue to Questions</button>
+            <button type="submit" id="continue-btn">Continue to Questions</button>
         </form>
     `);
     
+    startTimer();
+    
     document.getElementById('text-form').addEventListener('submit', function(e) {
         e.preventDefault();
+        clearInterval(state.timerInterval);
         state.currentStep++;
         showQuestions();
     });
+}
+
+function startTimer() {
+    const timerText = document.getElementById('timer-text');
+    const timerBar = document.getElementById('timer-bar');
+    const continueBtn = document.getElementById('continue-btn');
+    
+    state.timerInterval = setInterval(function() {
+        state.timeLeft--;
+        
+        // Update timer display
+        timerText.textContent = formatTime(state.timeLeft);
+        
+        // Update timer bar
+        const percentage = (state.timeLeft / 300) * 100;
+        timerBar.style.width = percentage + '%';
+        
+        // Change colors as time runs out
+        if (state.timeLeft <= 60) {
+            timerBar.style.backgroundColor = '#ef4444'; // Red
+            timerText.style.color = '#ef4444';
+        } else if (state.timeLeft <= 120) {
+            timerBar.style.backgroundColor = '#f59e0b'; // Orange
+            timerText.style.color = '#f59e0b';
+        }
+        
+        // Auto-advance when timer reaches zero
+        if (state.timeLeft <= 0) {
+            clearInterval(state.timerInterval);
+            timerText.textContent = "Time's up!";
+            continueBtn.textContent = "Proceed to Questions";
+            continueBtn.style.backgroundColor = '#ef4444';
+            
+            // Auto-submit after 2 seconds
+            setTimeout(function() {
+                document.getElementById('text-form').dispatchEvent(new Event('submit'));
+            }, 2000);
+        }
+    }, 1000);
 }
 
 function showQuestions() {
@@ -209,7 +284,6 @@ function showCompletion() {
         </div>
     `);
     
-    // Submit data
     submitData();
 }
 
@@ -219,6 +293,7 @@ async function submitData() {
         participantid: state.participantId,
         age: state.demographics.age,
         fluency: state.demographics.fluency,
+        assignedTexts: state.assignedTexts.map(t => t.title), // Log which texts were assigned
         N1: state.responses.N1 || '',
         E1: state.responses.E1 || '',
         N2: state.responses.N2 || '',
@@ -273,6 +348,8 @@ async function initExperiment() {
         state.participantId = generateId();
         state.assignedTexts = createLatinSquare(texts);
         state.totalSteps = 2 + (state.assignedTexts.length * 2);
+        
+        console.log('Assigned texts for participant', state.participantId, ':', state.assignedTexts.map(t => t.title));
         
         showConsent();
         

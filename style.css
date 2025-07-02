@@ -67,6 +67,38 @@ body {
   transition: width 0.4s ease;
 }
 
+/* ====== Timer Styles ====== */
+#timer-container {
+  background: white;
+  border: 2px solid var(--primary-color);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+#timer-display {
+  font-size: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: var(--primary-color);
+}
+
+#timer-bar-container {
+  width: 100%;
+  height: 12px;
+  background-color: #e5e7eb;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+#timer-bar {
+  height: 100%;
+  background-color: var(--success-color);
+  border-radius: var(--radius);
+  transition: width 0.5s ease, background-color 0.3s ease;
+}
+
 /* ====== Main Container ====== */
 #container {
   flex: 1;
@@ -207,68 +239,7 @@ textarea {
   font-family: inherit;
 }
 
-/* ====== Footer ====== */
-footer {
-  text-align: center;
-  padding: 1rem;
-  color: #6b7280;
-  border-top: 1px solid var(--border-color);
-  background: white;
-}
-
-/* ====== Responsive Design ====== */
-@media (max-width: 768px) {
-  .site-header {
-      padding: 1rem;
-  }
-  
-  #container {
-      margin: 1rem auto;
-      padding: 0 0.5rem;
-  }
-  
-  form {
-      padding: 1.5rem;
-  }
-  
-  .text-container {
-      padding: 1.5rem;
-  }
-  
-  button {
-      width: 100%;
-      justify-content: center;
-  }
-}
-
-/* ====== Accessibility ====== */
-@media (prefers-reduced-motion: reduce) {
-  * {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-  }
-}
-
-/* Focus indicators for keyboard navigation */
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible,
-button:focus-visible {
-  outline: 3px solid var(--focus-color);
-  outline-offset: 2px;
-}
-
-/* High contrast mode support */
-@media (prefers-contrast: high) {
-  :root {
-      --primary-color: #000080;
-      --text-color: #000000;
-      --background-color: #ffffff;
-      --border-color: #000000;
-  }
-}
-
+/* ====== Completion Message Styles ====== */
 .completion-message {
   text-align: center;
   max-width: 600px;
@@ -310,4 +281,70 @@ button:focus-visible {
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+/* ====== Footer ====== */
+footer {
+  text-align: center;
+  padding: 1rem;
+  color: #6b7280;
+  border-top: 1px solid var(--border-color);
+  background: white;
+}
+
+/* ====== Responsive Design ====== */
+@media (max-width: 768px) {
+  .site-header {
+      padding: 1rem;
+  }
+  
+  #container {
+      margin: 1rem auto;
+      padding: 0 0.5rem;
+  }
+  
+  form {
+      padding: 1.5rem;
+  }
+  
+  .text-container {
+      padding: 1.5rem;
+  }
+  
+  button {
+      width: 100%;
+      justify-content: center;
+  }
+  
+  #timer-display {
+      font-size: 1.1rem;
+  }
+}
+
+/* ====== Accessibility ====== */
+@media (prefers-reduced-motion: reduce) {
+  * {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+  }
+}
+
+/* Focus indicators for keyboard navigation */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible {
+  outline: 3px solid var(--focus-color);
+  outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  :root {
+      --primary-color: #000080;
+      --text-color: #000000;
+      --background-color: #ffffff;
+      --border-color: #000000;
+  }
 }
