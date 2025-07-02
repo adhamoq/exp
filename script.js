@@ -75,7 +75,7 @@ function createLatinSquare(texts) {
 function showConsent() {
     showContainer(`
         <h2>Consent Form</h2>
-        <p>This experiment is conducted by <strong>ichard Reichardt and Mohammed Naser Al-Moqdad</strong> as part of a research project. Your participation is voluntary and anonymous.</p>
+        <p>This experiment is conducted by <strong>Richárd Reichardt and Mohammed Naser Al-Moqdad</strong> as part of a research project. Your participation is voluntary and anonymous.</p>
         <p>You will be asked to read several texts and answer questions about them. <strong>You will have exactly 5 minutes to read each text.</strong> After the 5-minute timer expires, you will automatically proceed to answer questions about that text. The entire experiment will take approximately 15-20 minutes.</p>
         <form id="consent-form">
             <label>
