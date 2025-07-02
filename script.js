@@ -1,4 +1,4 @@
-const SHEET_URL = "https://your-actual-render-url.onrender.com/submit"; // Replace with your actual Render URL
+const SHEET_URL = "https://exp-xug8.onrender.com/submit"; // Replace with your actual Render URL
 const TEXTS_JSON = "texts.json";
 
 let state = {
