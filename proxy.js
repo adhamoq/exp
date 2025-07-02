@@ -1,27 +1,80 @@
 const express = require('express');
-const fetch = require('node-fetch');
 const cors = require('cors');
+const fetch = require('node-fetch');
 
 const app = express();
-app.use(cors());
-app.use(express.json());
-app.use(express.text({ type: 'text/plain' }));
+const PORT = process.env.PORT || 3000;
 
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxuEEHDR_5mggc3XKlwTSxw2tK664M_Rxry_gAYg9Llyc-AF46eCVpNzk1cz0jI8hKx/exec';
+// CORS configuration - allows requests from your GitHub Pages domain
+const corsOptions = {
+  origin: [
+    'https://adhamoq.github.io',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:5500'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Origin',
+    'X-Requested-With',
+    'Content-Type',
+    'Accept',
+    'Authorization'
+  ]
+};
+
+// Apply CORS middleware
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+app.use(express.json());
+
+// Replace with your actual Google Apps Script URL
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxuEEHDR_5mggc3XKlwTSxw2tK664M_Rxry_gAYg9Llyc-AF46eCVpNzk1cz0jI8hKx/exec";
+
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'Proxy server is running',
+    timestamp: new Date().toISOString(),
+    cors: 'enabled'
+  });
+});
 
 app.post('/submit', async (req, res) => {
   try {
-    const response = await fetch(APPS_SCRIPT_URL, {
+    console.log('Received submission:', req.body);
+    
+    const response = await fetch(GOOGLE_SCRIPT_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: typeof req.body === 'string' ? req.body : JSON.stringify(req.body),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(req.body)
     });
-    const text = await response.text();
-    res.status(response.status).send(text);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+
+    const result = await response.text();
+    console.log('Google Apps Script response:', result);
+
+    if (response.ok) {
+      res.json({ 
+        success: true, 
+        message: 'Data submitted successfully',
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      throw new Error(`Google Apps Script error: ${response.status}`);
+    }
+
+  } catch (error) {
+    console.error('Submission error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Proxy running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Proxy server running on port ${PORT}`);
+});
