@@ -268,3 +268,46 @@ button:focus-visible {
       --border-color: #000000;
   }
 }
+
+.completion-message {
+  text-align: center;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.participant-code {
+  background: #f0f9ff;
+  border: 2px solid var(--primary-color);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin: 1.5rem 0;
+}
+
+.participant-code span {
+  font-family: 'Courier New', monospace;
+  font-size: 1.2em;
+  color: var(--primary-color);
+}
+
+#submission-status {
+  margin-top: 2rem;
+  padding: 1rem;
+  background: #fafafa;
+  border-radius: var(--radius);
+}
+
+.spinner {
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid var(--primary-color);
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  animation: spin 1s linear infinite;
+  margin: 1rem auto;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

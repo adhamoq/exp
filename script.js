@@ -1,8 +1,6 @@
-// Configuration
-const SHEET_URL = "https://your-render-proxy-url.onrender.com/submit"; // Replace with your actual Render proxy URL
+const SHEET_URL = "https://your-actual-render-url.onrender.com/submit"; // Replace with your actual Render URL
 const TEXTS_JSON = "texts.json";
 
-// Global state
 let state = {
     currentStep: 0,
     totalSteps: 0,
@@ -14,9 +12,8 @@ let state = {
     startTime: Date.now()
 };
 
-// Utility functions
 function generateId() {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    return Date.now().toString(36) + Math.random().toString(36).substr(2).toUpperCase();
 }
 
 function updateProgress() {
@@ -29,22 +26,18 @@ function showContainer(html) {
     updateProgress();
 }
 
-// Latin Square implementation for balanced assignment
 function createLatinSquare(texts) {
     const narratives = texts.filter(t => t.narrative);
     const expositories = texts.filter(t => t.expository);
     
-    // Simple rotation method for Latin square
     const rotation = Math.floor(Math.random() * narratives.length);
     
-    // Select 2 narratives and 2 expositories
     const selectedTexts = [];
     for (let i = 0; i < 2; i++) {
         selectedTexts.push(narratives[(rotation + i) % narratives.length]);
         selectedTexts.push(expositories[(rotation + i) % expositories.length]);
     }
     
-    // Shuffle the selected texts
     for (let i = selectedTexts.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [selectedTexts[i], selectedTexts[j]] = [selectedTexts[j], selectedTexts[i]];
@@ -53,7 +46,6 @@ function createLatinSquare(texts) {
     return selectedTexts;
 }
 
-// Page rendering functions
 function showConsent() {
     showContainer(`
         <h2>Consent Form</h2>
@@ -162,13 +154,11 @@ function showQuestions() {
     document.getElementById('questions-form').addEventListener('submit', function(e) {
         e.preventDefault();
         
-        // Collect answers
         const answers = [];
         currentText.questions.forEach((question, index) => {
             answers.push(document.getElementById(`q${index}`).value);
         });
         
-        // Determine column name based on text type and index
         const textType = currentText.narrative ? 'N' : 'E';
         const textNumber = getTextNumber(currentText, textType);
         const columnName = textType + textNumber;
@@ -187,16 +177,15 @@ function showQuestions() {
 }
 
 function getTextNumber(currentText, textType) {
-    // Map text titles to numbers
     const textMapping = {
-        'Hindenburg disaster': textType === 'N' ? 1 : 1,
-        'The Invention of the Birth Control Pill': textType === 'N' ? 2 : 2,
-        'Three Christs of Ypsilanti': textType === 'N' ? 3 : 3,
-        'Discovery of blood types (Karl Landsteiner)': textType === 'N' ? 4 : 4,
-        'Discovery behind penicillin': textType === 'N' ? 5 : 5,
-        'The Invention of the Printing Press': textType === 'N' ? 6 : 6,
-        'The Gold Standard': textType === 'N' ? 7 : 7,
-        'The Zimmerman Telegram': textType === 'N' ? 8 : 8
+        'Hindenburg disaster': 1,
+        'The Invention of the Birth Control Pill': 2,
+        'Three Christs of Ypsilanti': 3,
+        'Discovery of blood types (Karl Landsteiner)': 4,
+        'Discovery behind penicillin': 5,
+        'The Invention of the Printing Press': 6,
+        'The Gold Standard': 7,
+        'The Zimmerman Telegram': 8
     };
     
     return textMapping[currentText.title] || 1;
@@ -204,16 +193,27 @@ function getTextNumber(currentText, textType) {
 
 function showCompletion() {
     showContainer(`
-        <h2>Thank You!</h2>
-        <p>Your responses have been recorded. Thank you for participating in this study.</p>
-        <p>You may now close this browser window.</p>
+        <div class="completion-message">
+            <h2>You have completed the experiment.</h2>
+            
+            <div class="participant-code">
+                <p><strong>Your participant code is: <span id="participant-code">${state.participantId}</span></strong></p>
+            </div>
+            
+            <p>If you have any questions, contact Richard Reichardt at <a href="mailto:reichardt.richard@ppk.elte.hu">reichardt.richard@ppk.elte.hu</a>.</p>
+            
+            <div id="submission-status">
+                <p id="submission-message">Submitting your data...</p>
+                <div id="submission-spinner" class="spinner"></div>
+            </div>
+        </div>
     `);
     
     // Submit data
     submitData();
 }
 
-function submitData() {
+async function submitData() {
     const submissionData = {
         timestamp: new Date().toISOString(),
         participantid: state.participantId,
@@ -236,34 +236,44 @@ function submitData() {
         N8: state.responses.N8 || ''
     };
     
-    fetch(SHEET_URL, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(submissionData)
-    }).catch(error => {
+    try {
+        const response = await fetch(SHEET_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(submissionData)
+        });
+
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            document.getElementById('submission-message').innerHTML = '<strong style="color: green;">Data submitted successfully!</strong>';
+            document.getElementById('submission-spinner').style.display = 'none';
+        } else {
+            throw new Error(result.error || 'Submission failed');
+        }
+        
+    } catch (error) {
         console.error('Error submitting data:', error);
-    });
+        document.getElementById('submission-message').innerHTML = `
+            <strong style="color: red;">Failed to submit data.</strong><br>
+            <small>Error: ${error.message}</small><br>
+            <small>Please save your participant code: <strong>${state.participantId}</strong></small>
+        `;
+        document.getElementById('submission-spinner').style.display = 'none';
+    }
 }
 
-// Initialize the experiment
 async function initExperiment() {
     try {
-        // Load texts from JSON
         const response = await fetch(TEXTS_JSON);
         const texts = await response.json();
         
-        // Generate participant ID
         state.participantId = generateId();
-        
-        // Assign texts using Latin square
         state.assignedTexts = createLatinSquare(texts);
+        state.totalSteps = 2 + (state.assignedTexts.length * 2);
         
-        // Calculate total steps
-        state.totalSteps = 2 + (state.assignedTexts.length * 2); // consent + demographics + (text + questions) for each text
-        
-        // Start the experiment
         showConsent();
         
     } catch (error) {
@@ -275,5 +285,4 @@ async function initExperiment() {
     }
 }
 
-// Start when page loads
 document.addEventListener('DOMContentLoaded', initExperiment);
